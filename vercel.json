@@ -1,0 +1,5 @@
+{
+  "env": {
+    "STORAGE_REDIS_URL": "redis://default:uFRdjm8pwgN3WYA2eIDe0hyhT1x1nEFv@redis-10234.c261.us-east-1-4.ec2.cloud.redislabs.com:10234"
+  }
+}
