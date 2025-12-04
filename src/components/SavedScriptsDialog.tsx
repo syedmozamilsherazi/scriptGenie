@@ -2,11 +2,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Copy, Trash2, ChevronDown } from "lucide-react";
+import { Copy, Trash2, ChevronDown, RotateCcw } from "lucide-react";
 
 interface SavedScript {
   id: string;
-  transcript: string;
+  originalArticle: string;
+  outline: string;
   result: string;
   timestamp: number;
 }
@@ -17,6 +18,7 @@ interface SavedScriptsDialogProps {
   savedScripts: SavedScript[];
   onCopy: (text: string) => void;
   onDelete: (id: string) => void;
+  onLoad: (script: SavedScript) => void;
 }
 
 const SavedScriptsDialog = ({
@@ -25,12 +27,13 @@ const SavedScriptsDialog = ({
   savedScripts,
   onCopy,
   onDelete,
+  onLoad,
 }: SavedScriptsDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Saved Scripts ({savedScripts.length})</DialogTitle>
+          <DialogTitle className="text-2xl">Script History ({savedScripts.length})</DialogTitle>
         </DialogHeader>
 
         {savedScripts.length === 0 ? (
@@ -54,11 +57,20 @@ const SavedScriptsDialog = ({
                             {new Date(script.timestamp).toLocaleString()}
                           </p>
                           <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
-                            {script.transcript.substring(0, 100)}...
+                            {(script.originalArticle || (script as any).transcript || "").substring(0, 100)}...
                           </p>
                         </div>
                       </div>
                       <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onLoad(script)}
+                          className="gap-2"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          Load
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -83,10 +95,20 @@ const SavedScriptsDialog = ({
                   <CollapsibleContent>
                     <CardContent className="pt-0">
                       <div className="border-t pt-4">
-                        <h4 className="font-semibold mb-2 text-sm">Original Input:</h4>
-                        <p className="text-sm text-muted-foreground mb-4 bg-muted/30 p-3 rounded">
-                          {script.transcript}
+                        <h4 className="font-semibold mb-2 text-sm">Original Article:</h4>
+                        <p className="text-sm text-muted-foreground mb-4 bg-muted/30 p-3 rounded max-h-[150px] overflow-y-auto">
+                          {script.originalArticle || (script as any).transcript || "N/A"}
                         </p>
+                        {script.outline && (
+                          <>
+                            <h4 className="font-semibold mb-2 text-sm">Research Outline:</h4>
+                            <div className="max-h-[200px] overflow-y-auto bg-muted/30 rounded p-3 mb-4">
+                              <pre className="whitespace-pre-wrap font-mono text-xs">
+                                {script.outline}
+                              </pre>
+                            </div>
+                          </>
+                        )}
                         <h4 className="font-semibold mb-2 text-sm">Generated Script:</h4>
                         <div className="max-h-[300px] overflow-y-auto bg-muted/30 rounded p-3">
                           <pre className="whitespace-pre-wrap font-sans text-sm">
