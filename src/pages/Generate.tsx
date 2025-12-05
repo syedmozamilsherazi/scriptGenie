@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Loader2, Sparkles, ArrowLeft, Search, FileText, AlertCircle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Copy, Loader2, Sparkles, Search, FileText, AlertCircle } from "lucide-react";
 import SavedScriptsDialog from "@/components/SavedScriptsDialog";
 import HistorySidebar from "@/components/HistorySidebar";
 import { getWordUsage, addWordUsage, subtractWordUsage } from "@/lib/wordUsageApi";
@@ -66,7 +65,6 @@ const Generate = () => {
   const [error, setError] = useState("");
   const [showSavedScripts, setShowSavedScripts] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const initializeData = async () => {
@@ -400,14 +398,6 @@ const Generate = () => {
         <div className="container mx-auto px-4 py-8 max-w-5xl">
           {/* Header */}
           <header className="mb-8 animate-fade-in">
-            <Button
-              variant="ghost"
-              onClick={() => navigate("/")}
-              className="mb-4"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-4xl font-bold mb-2">Generate Script</h1>
