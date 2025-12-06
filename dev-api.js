@@ -20,6 +20,8 @@ const app = express();
 const PORT = 3001;
 
 let redis = null;
+let useMemoryStore = false;
+const memoryStore = new Map();
 
 // Debug: Check if Redis URL is loaded
 console.log('STORAGE_REDIS_URL loaded:', process.env.STORAGE_REDIS_URL ? '✓ Yes' : '✗ No');
@@ -39,7 +41,29 @@ app.use((req, res, next) => {
   }
 });
 
+function enableMemoryStore(reason) {
+  if (!useMemoryStore) {
+    console.warn(`Falling back to in-memory store (${reason}). Word usage will reset on server restart.`);
+  }
+  useMemoryStore = true;
+  if (redis) {
+    try {
+      redis.quit();
+    } catch (error) {
+      // ignore close errors
+    }
+    redis = null;
+  }
+}
+
 async function getRedisClient() {
+  if (useMemoryStore) return null;
+
+  if (!process.env.STORAGE_REDIS_URL) {
+    enableMemoryStore('STORAGE_REDIS_URL missing');
+    return null;
+  }
+
   if (redis) {
     return redis;
   }
@@ -49,13 +73,35 @@ async function getRedisClient() {
       url: process.env.STORAGE_REDIS_URL,
     });
 
+    redis.on('error', (err) => {
+      console.error('Redis error:', err?.message || err);
+      enableMemoryStore('redis error');
+    });
+
     await redis.connect();
     console.log('Connected to Redis');
     return redis;
   } catch (error) {
     console.error('Failed to connect to Redis:', error);
-    throw error;
+    enableMemoryStore('connect failed');
+    return null;
   }
+}
+
+function readFromStore(key) {
+  if (useMemoryStore) {
+    const data = memoryStore.get(key);
+    return data ? JSON.parse(data) : null;
+  }
+  return null;
+}
+
+async function writeToStore(key, value, redisClient) {
+  if (useMemoryStore || !redisClient) {
+    memoryStore.set(key, JSON.stringify(value));
+    return;
+  }
+  await redisClient.setEx(key, 2592000, JSON.stringify(value));
 }
 
 function getCurrentMonthKey() {
@@ -87,10 +133,17 @@ app.post('/usage', async (req, res) => {
 
     let currentUsage = 0;
     try {
-      const data = await redisClient.get(key);
-      if (data) {
-        const parsed = JSON.parse(data);
-        currentUsage = parsed.wordUsage || 0;
+      if (redisClient) {
+        const data = await redisClient.get(key);
+        if (data) {
+          const parsed = JSON.parse(data);
+          currentUsage = parsed.wordUsage || 0;
+        }
+      } else {
+        const cached = readFromStore(key);
+        if (cached) {
+          currentUsage = cached.wordUsage || 0;
+        }
       }
     } catch (error) {
       console.warn('Error reading from Redis:', error);
@@ -107,9 +160,8 @@ app.post('/usage', async (req, res) => {
       newWordUsage = 0;
     }
 
-    // Store in Redis with 30 day expiration (2592000 seconds)
     const data = { wordUsage: newWordUsage, month: currentMonth };
-    await redisClient.setEx(key, 2592000, JSON.stringify(data));
+    await writeToStore(key, data, redisClient);
 
     res.status(200).json({
       success: true,
@@ -137,10 +189,17 @@ app.get('/usage', async (req, res) => {
 
     let wordUsage = 0;
     try {
-      const data = await redisClient.get(key);
-      if (data) {
-        const parsed = JSON.parse(data);
-        wordUsage = parsed.wordUsage || 0;
+      if (redisClient) {
+        const data = await redisClient.get(key);
+        if (data) {
+          const parsed = JSON.parse(data);
+          wordUsage = parsed.wordUsage || 0;
+        }
+      } else {
+        const cached = readFromStore(key);
+        if (cached) {
+          wordUsage = cached.wordUsage || 0;
+        }
       }
     } catch (error) {
       console.warn('Error reading from Redis:', error);

@@ -7,6 +7,7 @@ import { Copy, Loader2, Sparkles, Search, FileText, AlertCircle } from "lucide-r
 import SavedScriptsDialog from "@/components/SavedScriptsDialog";
 import HistorySidebar from "@/components/HistorySidebar";
 import { getWordUsage, addWordUsage, subtractWordUsage } from "@/lib/wordUsageApi";
+import { useNavigate } from "react-router-dom";
 
 interface SavedScript {
   id: string;
@@ -50,7 +51,10 @@ const countWords = (text: string): number => {
   return text.trim().split(/\s+/).filter(word => word.length > 0).length;
 };
 
+const SEO_STORAGE_KEY = "youtube-seo-descriptions";
+
 const Generate = () => {
+  const navigate = useNavigate();
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>("input");
   const [originalArticle, setOriginalArticle] = useState("");
   const [outline, setOutline] = useState("");
@@ -59,9 +63,11 @@ const Generate = () => {
   const [loadingStage, setLoadingStage] = useState(0);
   const [currentLoadingStages, setCurrentLoadingStages] = useState<string[]>(analyzeLoadingStages);
   const [savedScripts, setSavedScripts] = useState<SavedScript[]>([]);
+  const [savedSeo, setSavedSeo] = useState<any[]>([]); // Use correct type if available
   const [wordUsage, setWordUsage] = useState(0);
   const [isLoadingUsage, setIsLoadingUsage] = useState(true);
   const [currentScriptId, setCurrentScriptId] = useState<string>();
+  const [currentSeoId, setCurrentSeoId] = useState<string>();
   const [error, setError] = useState("");
   const [showSavedScripts, setShowSavedScripts] = useState(false);
   const { toast } = useToast();
@@ -74,7 +80,11 @@ const Generate = () => {
         if (saved) {
           setSavedScripts(JSON.parse(saved));
         }
-
+        // Load saved SEO from localStorage
+        const savedSeoRaw = localStorage.getItem(SEO_STORAGE_KEY);
+        if (savedSeoRaw) {
+          setSavedSeo(JSON.parse(savedSeoRaw));
+        }
         // Load word usage from API
         const usageData = await getWordUsage();
         if (usageData) {
@@ -86,7 +96,6 @@ const Generate = () => {
         setIsLoadingUsage(false);
       }
     };
-
     initializeData();
   }, []);
 
@@ -385,12 +394,28 @@ const Generate = () => {
       {/* Sidebar */}
       <HistorySidebar
         scripts={savedScripts}
+        seoDescriptions={savedSeo}
         onSelect={handleLoadFromHistory}
         onDelete={handleDelete}
         onNewScript={handleStartOver}
+        onNewDescription={() => navigate("/seo")}
+        onSelectSeo={(item) => {
+          // When SEO item is selected, navigate to SEO page and pass ID
+          setCurrentSeoId(item.id);
+          navigate("/seo");
+        }}
+        onDeleteSeo={(id) => {
+          const updated = savedSeo.filter((item) => item.id !== id);
+          setSavedSeo(updated);
+          localStorage.setItem(SEO_STORAGE_KEY, JSON.stringify(updated));
+          if (currentSeoId === id) {
+            setCurrentSeoId(undefined);
+          }
+        }}
         wordUsage={wordUsage}
         maxWords={MAX_WORDS}
         currentScriptId={currentScriptId}
+        currentSeoId={currentSeoId}
       />
 
       {/* Main Content */}
