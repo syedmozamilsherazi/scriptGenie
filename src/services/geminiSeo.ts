@@ -5,8 +5,19 @@ export interface SeoResult {
   raw?: string;
 }
 
-const GEMINI_API_KEY = "AIzaSyCDxvrLvwCx-FgYPGr_F45KQDv4ZmWCaj4";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+// Define models in order of preference
+const GEMINI_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-flash-latest",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash-001",
+  "gemini-2.0-flash-lite-001",
+  "gemini-pro-latest",
+  "gemini-2.5-pro",
+  "gemini-2.0-pro-exp-02-05"
+];
 
 const systemPrompt = `You are a YouTube SEO expert specializing in maximizing video discoverability, click-through rates, and watch time. Based on the provided script, generate SEO-optimized content following YouTube's best practices:
 
@@ -215,71 +226,133 @@ function buildFallback(text: string): SeoResult {
   };
 }
 
+async function fetchWithRetry(
+  endpoint: string,
+  options: RequestInit,
+  maxRetries: number = 5
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(endpoint, options);
+
+      // Handle rate limiting with exponential backoff
+      if (response.status === 429) {
+        const retryAfter = response.headers.get("retry-after");
+        // Start with 2s delay, then 4s, 8s, 16s, 32s
+        const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt + 1) * 1000;
+
+        if (attempt < maxRetries - 1) {
+          console.log(
+            `Rate limited (429). Retrying after ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+      }
+
+      // Return response if status is OK or if it's the last attempt
+      if (response.ok || attempt === maxRetries - 1) {
+        return response;
+      }
+
+      // For other non-OK responses, throw error
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    } catch (error) {
+      lastError = error as Error;
+
+      if (attempt < maxRetries - 1) {
+        const delayMs = Math.pow(2, attempt) * 1000;
+        console.log(
+          `Request failed: ${(error as Error).message}. Retrying after ${delayMs}ms (attempt ${
+            attempt + 1
+          }/${maxRetries})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  throw lastError || new Error("Max retries exceeded");
+}
+
 export async function generateYoutubeSeo(script: string): Promise<SeoResult> {
   const prompt = `${systemPrompt}\n\nSCRIPT:\n"""${script}"""`;
+  
+  let lastError: Error | null = null;
 
-  const response = await fetch(GEMINI_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
+  // Try each model in sequence
+  for (const model of GEMINI_MODELS) {
+    try {
+      console.log(`Attempting to generate SEO with model: ${model}`);
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      
+      // Use fewer retries per model since we have multiple models to try
+      const response = await fetchWithRetry(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            responseMimeType: "application/json",
+          },
+        }),
+      }, 2); // Reduced retries per model to 2
 
-  if (!response.ok) {
-    throw new Error(`Gemini request failed: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Gemini request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const json = await response.json();
+      const contentParts = (json?.candidates?.[0]?.content?.parts || []);
+      const jsonText = contentParts
+        .map((part: any) => part?.text || "")
+        .join("\n")
+        .trim();
+
+      console.log(`Gemini Raw Response (${model}):`, jsonText);
+
+      const cleanedJsonText = cleanJsonText(jsonText);
+
+      // Prefer direct JSON parse (handles plain JSON or JSON string)
+      const directParsed = parseJsonFromText(cleanedJsonText);
+      if (directParsed) {
+        return directParsed;
+      }
+
+      // Fallback to heuristic parsing if JSON parsing fails
+      if (cleanedJsonText.startsWith('{') && cleanedJsonText.endsWith('}')) {
+          console.warn("Failed to parse JSON response, and regex extraction also failed.");
+          return {
+              titles: [],
+              description: "",
+              tags: "",
+              raw: jsonText
+          };
+      }
+
+      return buildFallback(jsonText || JSON.stringify(json));
+
+    } catch (error) {
+      console.warn(`Failed with model ${model}:`, error);
+      lastError = error as Error;
+      // Continue to next model
+    }
   }
 
-  const json = await response.json();
-  const contentParts = (json?.candidates?.[0]?.content?.parts || []);
-  const jsonText = contentParts
-    .map((part: any) => part?.text || "")
-    .join("\n")
-    .trim();
-
-  console.log("Gemini Raw Response:", jsonText);
-
-  const cleanedJsonText = cleanJsonText(jsonText);
-
-  // Prefer direct JSON parse (handles plain JSON or JSON string)
-  const directParsed = parseJsonFromText(cleanedJsonText);
-  if (directParsed) {
-    return directParsed;
-  }
-
-  // Fallback to heuristic parsing if JSON parsing fails
-  // Check if the text looks like JSON before falling back to line-based parsing
-  if (cleanedJsonText.startsWith('{') && cleanedJsonText.endsWith('}')) {
-      // If it looks like JSON but failed parsing, it's likely broken JSON.
-      // We should NOT use buildFallback because it will treat the whole JSON string as description.
-      // Instead, return a partial result or empty result to avoid showing raw JSON.
-      console.warn("Failed to parse JSON response, and regex extraction also failed.");
-      
-      // Try one more time with extractFromBrokenJson on the raw text (in case cleaning removed something important?)
-      // Actually, parseJsonFromText already calls extractFromBrokenJson.
-      
-      return {
-          titles: [],
-          description: "",
-          tags: "",
-          raw: jsonText
-      };
-  }
-
-  return buildFallback(jsonText || JSON.stringify(json));
+  // If all models fail, throw the last error
+  throw lastError || new Error("All Gemini models failed to generate content");
 }
 
 export function buildSeoHistoryItem(script: string, seo: SeoResult) {
