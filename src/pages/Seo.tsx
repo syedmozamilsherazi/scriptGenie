@@ -86,14 +86,14 @@ const Seo = () => {
 
       toast({
         title: "SEO copy ready",
-        description: "5 titles, description, and tags generated with OpenAI.",
+        description: "5 titles, description, and tags generated.",
       });
     } catch (err) {
-      console.error("OpenAI SEO error", err);
+      console.error("SEO generation error", err);
       setError("Something went wrong while generating SEO copy. Please try again.");
       toast({
         title: "Generation failed",
-        description: "OpenAI request did not complete.",
+        description: "Request did not complete. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -236,7 +236,7 @@ const Seo = () => {
                 Paste your script
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                We will send your script to OpenAI to craft titles, description, and tags tailored for YouTube.
+                Craft optimized titles, description, and tags tailored for YouTube.
               </p>
             </CardHeader>
             <CardContent>
@@ -256,7 +256,7 @@ const Seo = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Asking OpenAI...
+                    Generating content...
                   </>
                 ) : (
                   <>
@@ -378,7 +378,7 @@ const Seo = () => {
             <Card className="border-primary/20 bg-primary/5 animate-pulse-glow">
               <CardContent className="py-6 flex items-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Calling OpenAI for SEO suggestions…</p>
+                <p className="text-sm text-muted-foreground">Generating SEO suggestions…</p>
               </CardContent>
             </Card>
           )}
