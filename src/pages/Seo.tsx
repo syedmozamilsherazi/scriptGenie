@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import HistorySidebar from "@/components/HistorySidebar";
 import { useToast } from "@/hooks/use-toast";
 import { getWordUsage, subtractWordUsage } from "@/lib/wordUsageApi";
-import { generateYoutubeSeo, buildSeoHistoryItem, SeoResult } from "@/services/geminiSeo";
+import { generateYoutubeSeo, buildSeoHistoryItem, SeoResult } from "@/services/openaiSeo";
 import { Copy, Loader2, Sparkles, Tags, Wand2, FileText } from "lucide-react";
 
 interface SavedScript {
@@ -86,14 +86,14 @@ const Seo = () => {
 
       toast({
         title: "SEO copy ready",
-        description: "5 titles, description, and tags generated with Gemini.",
+        description: "5 titles, description, and tags generated with OpenAI.",
       });
     } catch (err) {
-      console.error("Gemini SEO error", err);
+      console.error("OpenAI SEO error", err);
       setError("Something went wrong while generating SEO copy. Please try again.");
       toast({
         title: "Generation failed",
-        description: "Gemini request did not complete.",
+        description: "OpenAI request did not complete.",
         variant: "destructive",
       });
     } finally {
@@ -101,12 +101,21 @@ const Seo = () => {
     }
   };
 
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied",
-      description: "Content copied to your clipboard.",
-    });
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Copied",
+        description: "Text copied to clipboard",
+      });
+    } catch (err) {
+      console.error("Failed to copy:", err);
+      toast({
+        title: "Copy failed",
+        description: "Could not copy to clipboard",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeleteSeo = (id: string) => {
@@ -165,15 +174,20 @@ const Seo = () => {
     return (
       <div className="grid gap-2">
         {titles.map((title, index) => (
-          <Card key={index} className="border-muted">
+          <Card key={index} className="border-muted hover:border-primary/50 hover:bg-primary/5 transition-all">
             <CardContent className="flex items-center justify-between py-3 px-4 gap-3">
-              <div className="flex items-center gap-3 text-sm">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+              <div className="flex items-center gap-3 text-sm flex-1">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {index + 1}
                 </span>
                 <span className="font-medium leading-tight">{title}</span>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => handleCopy(title)} className="gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => handleCopy(title)} 
+                className="gap-2 hover:bg-primary/10"
+              >
                 <Copy className="h-4 w-4" />
                 Copy
               </Button>
@@ -222,7 +236,7 @@ const Seo = () => {
                 Paste your script
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                We will send your script to Gemini to craft titles, description, and tags tailored for YouTube.
+                We will send your script to OpenAI to craft titles, description, and tags tailored for YouTube.
               </p>
             </CardHeader>
             <CardContent>
@@ -242,7 +256,7 @@ const Seo = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Asking Gemini...
+                    Asking OpenAI...
                   </>
                 ) : (
                   <>
@@ -289,37 +303,46 @@ const Seo = () => {
                 </section>
 
                 <section>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-3">
                     <FileText className="h-4 w-4" />
                     <h3 className="text-lg font-semibold">Description</h3>
                   </div>
-                  <div className="relative">
+                  <div className="relative group">
                     <Textarea
                       value={seoResult.description}
                       readOnly
-                      className="min-h-[180px] text-sm bg-muted/30"
+                      className="min-h-[180px] text-sm bg-muted/30 focus:bg-muted/40"
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute top-2 right-2 gap-1"
-                      onClick={() => handleCopy(seoResult.description)}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy
-                    </Button>
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => handleCopy(seoResult.description)}
+                        title="Copy description text"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </Button>
+                    </div>
                   </div>
                 </section>
 
                 <section>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-3">
                     <Tags className="h-4 w-4" />
                     <h3 className="text-lg font-semibold">Tags</h3>
                   </div>
-                  <div className="flex flex-wrap gap-2 mb-3">
+                  <div className="flex flex-wrap gap-2 mb-4 p-3 bg-muted/20 rounded-lg border border-muted">
                     {tagsList.length ? (
                       tagsList.map((tag, idx) => (
-                        <Badge key={`${tag}-${idx}`} variant="secondary" className="text-xs">
+                        <Badge 
+                          key={`${tag}-${idx}`} 
+                          variant="secondary" 
+                          className="text-xs cursor-pointer hover:opacity-80"
+                          onClick={() => handleCopy(tag)}
+                          title="Click to copy this tag"
+                        >
                           {tag}
                         </Badge>
                       ))
@@ -327,21 +350,24 @@ const Seo = () => {
                       <p className="text-sm text-muted-foreground">No tags returned</p>
                     )}
                   </div>
-                  <div className="relative">
+                  <div className="relative group">
                     <Textarea
                       value={seoResult.tags}
                       readOnly
-                      className="min-h-[80px] text-sm bg-muted/30"
+                      className="min-h-[80px] text-sm bg-muted/30 focus:bg-muted/40"
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute top-2 right-2 gap-1"
-                      onClick={() => handleCopy(seoResult.tags)}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy
-                    </Button>
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => handleCopy(seoResult.tags)}
+                        title="Copy all tags as comma-separated list"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </Button>
+                    </div>
                   </div>
                 </section>
               </CardContent>
@@ -352,7 +378,7 @@ const Seo = () => {
             <Card className="border-primary/20 bg-primary/5 animate-pulse-glow">
               <CardContent className="py-6 flex items-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Calling Gemini for SEO suggestions…</p>
+                <p className="text-sm text-muted-foreground">Calling OpenAI for SEO suggestions…</p>
               </CardContent>
             </Card>
           )}

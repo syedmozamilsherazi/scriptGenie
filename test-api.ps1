@@ -1,39 +1,34 @@
-$apiKey = "AIzaSyByfh4CwBRTrqDNqHEXDYSkiUGHxw4RLBI"
+$apiKey = $env:VITE_OPENAI_API_KEY
+if (-not $apiKey) {
+    Write-Host "Error: VITE_OPENAI_API_KEY environment variable is not set" -ForegroundColor Red
+    Write-Host "Please add it to your .env file" -ForegroundColor Yellow
+    exit 1
+}
+
 $body = @{
-    contents = @(
+    model = "gpt-4o-mini"
+    messages = @(
         @{
-            parts = @(
-                @{ text = "Hello" }
-            )
+            role = "system"
+            content = "You are a helpful assistant."
+        },
+        @{
+            role = "user"
+            content = "Say hello!"
         }
     )
+    temperature = 0.7
 } | ConvertTo-Json -Depth 10
 
-$models = @(
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-lite-001",
-    "gemini-flash-latest",
-    "gemini-pro-latest",
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.0-pro-exp-02-05"
-)
-
-foreach ($model in $models) {
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/$($model):generateContent?key=$apiKey"
-    Write-Host "Testing $model..."
-    try {
-        $response = Invoke-RestMethod -Uri $url -Method Post -Body $body -ContentType "application/json"
-        Write-Host "Success: $($response.candidates[0].content.parts[0].text)" -ForegroundColor Green
-    } catch {
-        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
-        if ($_.Exception.Response) {
-             $stream = $_.Exception.Response.GetResponseStream()
-             $reader = New-Object System.IO.StreamReader($stream)
-             Write-Host "Details: $($reader.ReadToEnd())" -ForegroundColor Red
-        }
+Write-Host "Testing OpenAI API..."
+try {
+    $response = Invoke-RestMethod -Uri "https://api.openai.com/v1/chat/completions" -Method Post -Body $body -ContentType "application/json" -Headers @{"Authorization" = "Bearer $apiKey"}
+    Write-Host "Success: $($response.choices[0].message.content)" -ForegroundColor Green
+} catch {
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    if ($_.Exception.Response) {
+        $stream = $_.Exception.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($stream)
+        Write-Host "Details: $($reader.ReadToEnd())" -ForegroundColor Red
     }
-    Write-Host "--------------------------------"
 }

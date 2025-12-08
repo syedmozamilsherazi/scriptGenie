@@ -7,23 +7,58 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
 dist
 dist-ssr
 *.local
 
-# Environment variables
+# Environment variables - NEVER commit these files
 .env
 .env.local
 .env.*.local
+.env.production.local
+
+# Sensitive files
+*.key
+*.pem
+*.p12
+.aws/
+.vscode/settings.json
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
+.vscode/settings.json
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+coverage/
+.nyc_output/
+
+# Build files
+/dist
+/build
+/out
+
+# Misc
+.DS_Store
+*.pem
+*.jks
